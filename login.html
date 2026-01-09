@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <title>تسجيل الدخول</title>
+</head>
+<body>
+  <h2>دخول الأدمن</h2>
+
+  <form id="f">
+    <input id="u" placeholder="اسم المستخدم"><br>
+    <input id="p" type="password" placeholder="كلمة المرور"><br>
+    <button>دخول</button>
+  </form>
+
+  <script>
+    f.onsubmit = async e => {
+      e.preventDefault();
+      const r = await fetch('/api/login', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({user:u.value, pass:p.value})
+      });
+      const d = await r.json();
+      if (d.token) {
+        localStorage.token = d.token;
+        location.href = '/dashboard.html';
+      }
+    };
+  </script>
+</body>
+</html>
