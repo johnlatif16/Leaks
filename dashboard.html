@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard</title>
+</head>
+<body>
+  <h1>لوحة التحكم</h1>
+
+  <h3>إضافة قسم</h3>
+  <input id="sec"><button onclick="addSection()">إضافة</button>
+
+  <h3>إضافة خبر</h3>
+  <input id="t" placeholder="العنوان">
+  <input id="c" placeholder="المحتوى">
+  <input id="s" placeholder="القسم">
+  <button onclick="addNews()">نشر</button>
+
+  <script>
+    const token = localStorage.token;
+
+    function send(url, data) {
+      return fetch(url, {
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          'Authorization':'Bearer '+token
+        },
+        body:JSON.stringify(data)
+      });
+    }
+
+    function addSection() {
+      send('/api/section',{name:sec.value});
+    }
+    function addNews() {
+      send('/api/news',{title:t.value,content:c.value,section:s.value});
+    }
+  </script>
+</body>
+</html>
