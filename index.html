@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <title>موقع الأخبار</title>
+</head>
+<body>
+  <h1>آخر الأخبار</h1>
+  <div id="content"></div>
+
+  <script>
+    fetch('/api/news')
+      .then(res => res.json())
+      .then(data => {
+        const c = document.getElementById('content');
+        data.forEach(sec => {
+          c.innerHTML += `<h2>${sec.section}</h2>`;
+          sec.news.forEach(n =>
+            c.innerHTML += `<p><b>${n.title}</b> - ${n.content}</p>`
+          );
+        });
+      });
+  </script>
+</body>
+</html>
