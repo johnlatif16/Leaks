@@ -4,31 +4,267 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>تسجيل دخول الأدمن</title>
+
   <style>
-    body { font-family: system-ui, Arial; margin: 24px; max-width: 520px; }
-    .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; }
-    label { display:block; margin-top: 10px; }
-    input { width: 100%; padding: 10px; margin-top: 6px; }
-    button { margin-top: 14px; padding: 10px 14px; cursor:pointer; }
-    .err { color: #b00020; margin-top: 10px; }
+    :root{
+      --bg:#0b1220;
+      --card:rgba(17,26,46,.72);
+      --text:#e8eefc;
+      --muted:#a9b6d6;
+      --line:rgba(255,255,255,.10);
+      --radius:20px;
+      --good:#22c55e;
+      --bad:#ef4444;
+      --btn:#1f2a44;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; min-height:100vh;
+      display:flex; align-items:center; justify-content:center;
+      font-family: system-ui, -apple-system, Segoe UI, Arial;
+      background:
+        radial-gradient(1200px 600px at 80% -10%, rgba(99,102,241,.22), transparent 60%),
+        radial-gradient(900px 450px at 10% 0%, rgba(34,197,94,.14), transparent 55%),
+        var(--bg);
+      color:var(--text);
+      padding:24px;
+    }
+
+    .wrap{
+      width: min(980px, 100%);
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:16px;
+      align-items:stretch;
+    }
+
+    @media (max-width: 860px){
+      .wrap{ grid-template-columns:1fr; }
+    }
+
+    .panel{
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      background: var(--card);
+      backdrop-filter: blur(10px);
+      overflow:hidden;
+      box-shadow: 0 10px 30px rgba(0,0,0,.35);
+    }
+
+    .left{
+      padding:22px;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin-bottom:4px;
+    }
+    .dot{
+      width:12px;height:12px;border-radius:999px;
+      background: var(--good);
+      box-shadow:0 0 0 7px rgba(34,197,94,.12);
+    }
+
+    h1{
+      margin:0;
+      font-size:22px;
+      letter-spacing:.2px;
+    }
+
+    .desc{
+      margin:0;
+      color:var(--muted);
+      line-height:1.8;
+      font-size:13px;
+    }
+
+    .badgeRow{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      margin-top:6px;
+    }
+    .badge{
+      font-size:12px;
+      color:var(--muted);
+      border:1px solid var(--line);
+      padding:8px 10px;
+      border-radius:999px;
+      background: rgba(0,0,0,.16);
+    }
+
+    .right{
+      padding:22px;
+    }
+
+    form{
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      margin-top:4px;
+    }
+
+    label{
+      display:block;
+      color:var(--muted);
+      font-size:13px;
+      margin-bottom:6px;
+    }
+
+    input{
+      width:100%;
+      padding:12px 14px;
+      border-radius:16px;
+      border:1px solid var(--line);
+      background: rgba(0,0,0,.18);
+      color:var(--text);
+      outline:none;
+      transition: .15s;
+    }
+
+    input:focus{
+      border-color: rgba(99,102,241,.55);
+      box-shadow: 0 0 0 5px rgba(99,102,241,.12);
+    }
+
+    .row{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+    }
+    @media (max-width: 520px){
+      .row{ grid-template-columns:1fr; }
+    }
+
+    .btn{
+      padding:12px 14px;
+      border-radius:16px;
+      border:1px solid var(--line);
+      background: var(--btn);
+      color:var(--text);
+      cursor:pointer;
+      font-weight:700;
+      transition:.15s;
+    }
+    .btn:hover{
+      transform: translateY(-1px);
+      border-color: rgba(255,255,255,.18);
+    }
+
+    .btn.good{
+      border-color: rgba(34,197,94,.35);
+    }
+
+    .msg{
+      display:none;
+      padding:10px 12px;
+      border-radius:16px;
+      border:1px solid rgba(239,68,68,.35);
+      background: rgba(239,68,68,.08);
+      color:#ffb4b4;
+      font-size:13px;
+      line-height:1.6;
+    }
+
+    .foot{
+      margin-top:12px;
+      color:var(--muted);
+      font-size:12px;
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+
+    .link{
+      color:#cfe0ff;
+      text-decoration:none;
+    }
+    .link:hover{ text-decoration:underline; }
+
+    .hint{
+      border-top:1px solid var(--line);
+      margin-top:14px;
+      padding-top:12px;
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.8;
+    }
+    code{
+      background: rgba(0,0,0,.2);
+      border:1px solid var(--line);
+      padding:2px 6px;
+      border-radius:10px;
+      color:#dce6ff;
+    }
   </style>
 </head>
+
 <body>
-  <h1>تسجيل دخول الأدمن</h1>
+  <div class="wrap">
+    <!-- Intro Panel -->
+    <section class="panel left">
+      <div class="brand">
+        <div class="dot"></div>
+        <div>
+          <div style="font-weight:900">News Admin</div>
+          <div style="color:var(--muted);font-size:12px;margin-top:2px">لوحة إدارة الأخبار</div>
+        </div>
+      </div>
 
-  <div class="card">
-    <form id="form">
-      <label>اسم المستخدم
-        <input name="username" autocomplete="username" required />
-      </label>
+      <h1>تسجيل دخول الأدمن</h1>
+      <p class="desc">
+        قم بتسجيل الدخول لإضافة أخبار بصور وفيديوهات وجداول داخل المحتوى.
+        النظام محمي باستخدام JWT + CSRF.
+      </p>
 
-      <label>كلمة المرور
-        <input type="password" name="password" autocomplete="current-password" required />
-      </label>
+      <div class="badgeRow">
+        <div class="badge">JWT Cookie</div>
+        <div class="badge">CSRF Token</div>
+        <div class="badge">Secure Dashboard</div>
+      </div>
 
-      <button type="submit">دخول</button>
-      <div id="msg" class="err"></div>
-    </form>
+      <div class="hint">
+        ✅ الصفحة الرئيسية: <a class="link" href="/">/</a><br>
+        ✅ لوحة الأدمن: <code>/dashboard.html</code><br>
+        ✅ تسجيل الدخول: <code>/login.html</code>
+      </div>
+    </section>
+
+    <!-- Login Panel -->
+    <section class="panel right">
+      <h2 style="margin:0;font-size:18px">دخول</h2>
+      <p style="margin:8px 0 0;color:var(--muted);font-size:13px;line-height:1.7">
+        أدخل بيانات الأدمن لتكمل.
+      </p>
+
+      <form id="form" autocomplete="on">
+        <div class="row">
+          <div>
+            <label>اسم المستخدم</label>
+            <input name="username" placeholder="admin" autocomplete="username" required />
+          </div>
+          <div>
+            <label>كلمة المرور</label>
+            <input name="password" type="password" placeholder="••••••••" autocomplete="current-password" required />
+          </div>
+        </div>
+
+        <button class="btn good" type="submit" id="btn">تسجيل الدخول</button>
+
+        <div class="msg" id="msg"></div>
+
+        <div class="foot">
+          <span>© لوحة الإدارة</span>
+          <a class="link" href="/">رجوع للموقع</a>
+        </div>
+      </form>
+    </section>
   </div>
 
   <script>
@@ -40,37 +276,65 @@
       csrfToken = d.csrfToken;
     }
 
-    document.getElementById("form").addEventListener("submit", async (e) => {
-      e.preventDefault();
+    function showError(text){
+      const msg = document.getElementById("msg");
+      msg.textContent = text;
+      msg.style.display = "block";
+    }
+
+    function clearError(){
       const msg = document.getElementById("msg");
       msg.textContent = "";
+      msg.style.display = "none";
+    }
 
-      const fd = new FormData(e.target);
-      const payload = {
-        username: fd.get("username"),
-        password: fd.get("password")
-      };
+    document.getElementById("form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      clearError();
 
-      const r = await fetch("/api/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-csrf-token": csrfToken
-        },
-        credentials: "same-origin",
-        body: JSON.stringify(payload)
-      });
+      const btn = document.getElementById("btn");
+      btn.disabled = true;
+      btn.textContent = "جاري تسجيل الدخول...";
 
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        msg.textContent = d.error || "فشل تسجيل الدخول";
-        await getCsrf(); // جدّد التوكن عند الفشل
-        return;
+      try{
+        const fd = new FormData(e.target);
+        const payload = {
+          username: fd.get("username"),
+          password: fd.get("password")
+        };
+
+        const r = await fetch("/api/login", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-csrf-token": csrfToken
+          },
+          credentials: "same-origin",
+          body: JSON.stringify(payload)
+        });
+
+        const d = await r.json().catch(() => ({}));
+
+        if (!r.ok) {
+          // مهم: لو CSRF ضربت، غالباً token اتغير
+          await getCsrf();
+          showError(d.error || "فشل تسجيل الدخول");
+          return;
+        }
+
+        // نجاح
+        location.href = "/dashboard.html";
+
+      }catch(err){
+        await getCsrf();
+        showError("حصل خطأ في الاتصال بالسيرفر");
+      }finally{
+        btn.disabled = false;
+        btn.textContent = "تسجيل الدخول";
       }
-
-      location.href = "/dashboard.html";
     });
 
+    // أول تحميل: هات CSRF
     getCsrf();
   </script>
 </body>
