@@ -1,3 +1,4 @@
+// server.js
 const express = require("express");
 const path = require("path");
 const fs = require("fs/promises");
@@ -9,11 +10,14 @@ const rateLimit = require("express-rate-limit");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const csurf = require("csurf");
+const multer = require("multer");
+const crypto = require("crypto");
 
 dotenv.config();
 
 const app = express();
 
+// ====== Config ======
 const PORT = Number(process.env.PORT || 3000);
 const NODE_ENV = process.env.NODE_ENV || "development";
 const IS_PROD = NODE_ENV === "production";
@@ -27,35 +31,83 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
 // ملف تخزين الأخبار
 const NEWS_PATH = path.join(__dirname, "data", "news.json");
 
-// إعدادات الكوكيز
-const COOKIE_SECURE = (process.env.COOKIE_SECURE || "").toLowerCase() === "true" ? true : IS_PROD;
-const COOKIE_SAMESITE = "strict"; // مناسب للوحات إدارة نفس الموقع
+// Cookie options
+const COOKIE_SECURE =
+  (process.env.COOKIE_SECURE || "").toLowerCase() === "true" ? true : IS_PROD;
+
+const COOKIE_SAMESITE = "strict"; // نفس الدومين (لو cross-site هتحتاج None + Secure)
+
+// اعمل hash مرة واحدة عند تشغيل السيرفر
+const ADMIN_PASSWORD_HASH = bcrypt.hashSync(ADMIN_PASSWORD, 12);
 
 // ====== Middleware ======
 app.use(helmet());
-app.use(morgan("dev"));
-app.use(express.json({ limit: "200kb" }));
+app.use(morgan(IS_PROD ? "combined" : "dev"));
+
+app.use(express.json({ limit: "2mb" }));
 app.use(cookieParser());
 
-// Rate limit أساسي
 app.use(
   rateLimit({
     windowMs: 60 * 1000,
     limit: 120,
     standardHeaders: true,
-    legacyHeaders: false
+    legacyHeaders: false,
   })
 );
 
-// CSRF باستخدام Cookie (Double Submit-ish مع csurf)
-// ملاحظة: csurf يتحقق من توكن يُرسل مع الطلب مقابل السر المخزن/الموقع في cookie حسب الإعدادات.
+// CSRF (token عبر cookie + header x-csrf-token)
 const csrfProtection = csurf({
   cookie: {
-    httpOnly: true,           // cookie الخاصة بـ CSRF نفسها httpOnly
+    httpOnly: true,
     sameSite: COOKIE_SAMESITE,
-    secure: COOKIE_SECURE
-  }
+    secure: COOKIE_SECURE,
+  },
 });
+
+// ====== Uploads (multer) ======
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: async (req, file, cb) => {
+      try {
+        const dir = path.join(__dirname, "uploads");
+        await fs.mkdir(dir, { recursive: true });
+        cb(null, dir);
+      } catch (e) {
+        cb(e);
+      }
+    },
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname || "").toLowerCase();
+      const name =
+        `${Date.now()}_${crypto.randomBytes(6).toString("hex")}` + ext;
+      cb(null, name);
+    },
+  }),
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
+  fileFilter: (req, file, cb) => {
+    const ok = [
+      "image/png",
+      "image/jpeg",
+      "image/webp",
+      "image/gif",
+      "video/mp4",
+      "video/webm",
+    ].includes(file.mimetype);
+    if (!ok) return cb(new Error("Unsupported file type"), false);
+    cb(null, true);
+  },
+});
+
+// تقديم uploads كملفات static
+app.use(
+  "/uploads",
+  express.static(path.join(__dirname, "uploads"), {
+    setHeaders(res) {
+      res.setHeader("X-Content-Type-Options", "nosniff");
+    },
+  })
+);
 
 // ====== Helpers ======
 async function readNews() {
@@ -63,7 +115,7 @@ async function readNews() {
     const raw = await fs.readFile(NEWS_PATH, "utf8");
     const arr = JSON.parse(raw);
     return Array.isArray(arr) ? arr : [];
-  } catch (e) {
+  } catch {
     return [];
   }
 }
@@ -94,40 +146,90 @@ function requireAuth(req, res, next) {
   next();
 }
 
+function randomId() {
+  // Node 18+ غالبًا فيه randomUUID
+  if (crypto.randomUUID) return crypto.randomUUID();
+  return "n_" + Math.random().toString(16).slice(2) + "_" + Date.now().toString(16);
+}
+
+function sortNewsNewestFirst(items) {
+  return items.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+}
+
+// فلترة blocks (تأمين / تقليل junk)
+function sanitizeBlocks(blocks) {
+  if (!Array.isArray(blocks)) return [];
+  const safe = blocks
+    .slice(0, 50)
+    .map((b) => {
+      if (!b || typeof b !== "object") return null;
+      const type = String(b.type || "");
+
+      if (type === "paragraph") {
+        return { type: "paragraph", text: String(b.text || "").slice(0, 5000) };
+      }
+      if (type === "image") {
+        return {
+          type: "image",
+          url: String(b.url || "").slice(0, 2000),
+          alt: String(b.alt || "").slice(0, 200),
+        };
+      }
+      if (type === "video") {
+        return { type: "video", url: String(b.url || "").slice(0, 2000) };
+      }
+      if (type === "table") {
+        const headers = Array.isArray(b.headers)
+          ? b.headers.map((x) => String(x).slice(0, 100)).slice(0, 12)
+          : [];
+        const rows = Array.isArray(b.rows)
+          ? b.rows
+              .map((r) =>
+                Array.isArray(r)
+                  ? r.map((x) => String(x).slice(0, 200)).slice(0, 12)
+                  : []
+              )
+              .slice(0, 50)
+          : [];
+        return { type: "table", headers, rows };
+      }
+      return null;
+    })
+    .filter(Boolean);
+
+  return safe;
+}
+
 // ====== Routes ======
 
-// حماية dashboard.html (لا نتركها للـ static)
+// حماية dashboard.html (مش هنسيبه للـ static)
 app.get("/dashboard.html", requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "dashboard.html"));
 });
 
-// تقديم ملفات static (index/login)
+// تقديم public static (index/login + assets)
 app.use(express.static(path.join(__dirname, "public")));
 
-// CSRF token endpoint (للاستخدام من الواجهات)
+// CSRF token endpoint (للفرونت)
 app.get("/api/csrf", csrfProtection, (req, res) => {
   res.json({ csrfToken: req.csrfToken() });
 });
 
 // Public: قراءة الأخبار
 app.get("/api/news", async (req, res) => {
-  const items = await readNews();
-  // الأحدث أولاً
-  items.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+  const items = sortNewsNewestFirst(await readNews());
   res.json({ items });
 });
 
-// Login (محمي بـ CSRF)
+// Login (CSRF)
 app.post("/api/login", csrfProtection, async (req, res) => {
   const { username, password } = req.body || {};
   if (typeof username !== "string" || typeof password !== "string") {
     return res.status(400).json({ error: "Invalid payload" });
   }
 
-  // تحقق بسيط: اسم المستخدم + كلمة المرور (مع bcrypt لتقليل المخاطر داخل الذاكرة)
-  // في تطبيق فعلي: خزّن hash في DB/ENV بدل كلمة المرور plaintext.
   const okUser = username === ADMIN_USERNAME;
-  const passOk = await bcrypt.compare(password, await bcrypt.hash(ADMIN_PASSWORD, 10));
+  const passOk = await bcrypt.compare(password, ADMIN_PASSWORD_HASH);
 
   if (!okUser || !passOk) {
     return res.status(401).json({ error: "Invalid credentials" });
@@ -139,7 +241,7 @@ app.post("/api/login", csrfProtection, async (req, res) => {
     httpOnly: true,
     secure: COOKIE_SECURE,
     sameSite: COOKIE_SAMESITE,
-    maxAge: 2 * 60 * 60 * 1000 // 2 ساعات
+    maxAge: 2 * 60 * 60 * 1000, // 2h
   });
 
   res.json({ ok: true });
@@ -156,69 +258,91 @@ app.get("/api/admin/me", requireAuth, (req, res) => {
   res.json({ user: { username: req.user.sub, role: req.user.role } });
 });
 
-// Admin: CRUD الأخبار (كل POST/DELETE محمية CSRF)
+// Admin: رفع ملفات (CSRF + Auth)
+app.post(
+  "/api/admin/upload",
+  requireAuth,
+  csrfProtection,
+  upload.single("file"),
+  (req, res) => {
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+    res.json({
+      ok: true,
+      url: `/uploads/${req.file.filename}`,
+      mime: req.file.mimetype,
+      size: req.file.size,
+    });
+  }
+);
+
+// Admin: قراءة الأخبار
 app.get("/api/admin/news", requireAuth, async (req, res) => {
-  const items = await readNews();
-  items.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+  const items = sortNewsNewestFirst(await readNews());
   res.json({ items });
 });
 
+// Admin: إضافة خبر (Blocks)
 app.post("/api/admin/news", requireAuth, csrfProtection, async (req, res) => {
-  const { title, body } = req.body || {};
+  const { title, blocks } = req.body || {};
+
   if (typeof title !== "string" || title.trim().length < 2) {
     return res.status(400).json({ error: "Title is required" });
   }
-  if (typeof body !== "string" || body.trim().length < 2) {
-    return res.status(400).json({ error: "Body is required" });
+
+  const safeBlocks = sanitizeBlocks(blocks);
+  if (safeBlocks.length === 0) {
+    return res.status(400).json({ error: "Blocks are required" });
   }
 
   const items = await readNews();
   const item = {
-    id: cryptoRandomId(),
+    id: randomId(),
     title: title.trim(),
-    body: body.trim(),
-    createdAt: new Date().toISOString()
+    blocks: safeBlocks,
+    createdAt: new Date().toISOString(),
   };
+
   items.push(item);
   await writeNews(items);
+
   res.json({ ok: true, item });
 });
 
+// Admin: حذف خبر
 app.delete("/api/admin/news/:id", requireAuth, csrfProtection, async (req, res) => {
   const id = req.params.id;
   const items = await readNews();
   const next = items.filter((x) => x.id !== id);
+
   if (next.length === items.length) {
     return res.status(404).json({ error: "Not found" });
   }
+
   await writeNews(next);
   res.json({ ok: true });
 });
 
-// 404
+// ====== 404 ======
 app.use((req, res) => {
   res.status(404).send("Not Found");
 });
 
-// Error handler (خصوصاً csurf)
+// ====== Error handler (خصوصًا CSRF/multer) ======
 app.use((err, req, res, next) => {
   if (err && err.code === "EBADCSRFTOKEN") {
     return res.status(403).json({ error: "Bad CSRF token" });
+  }
+  if (err && err.message === "Unsupported file type") {
+    return res.status(400).json({ error: "Unsupported file type" });
+  }
+  if (err && err.code === "LIMIT_FILE_SIZE") {
+    return res.status(400).json({ error: "File too large" });
   }
   console.error(err);
   res.status(500).json({ error: "Server error" });
 });
 
+// ====== Start ======
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
-
-function cryptoRandomId() {
-  // بدون اعتماد على crypto (للتوافق) – لو تحب نستخدم crypto.randomUUID() قولّي
-  return (
-    "n_" +
-    Math.random().toString(16).slice(2) +
-    "_" +
-    Date.now().toString(16)
-  );
-}
