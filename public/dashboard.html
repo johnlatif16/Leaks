@@ -5,164 +5,454 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>لوحة الأدمن</title>
   <style>
-    body { font-family: system-ui, Arial; margin: 24px; max-width: 900px; }
-    header { display:flex; justify-content:space-between; align-items:center; gap: 12px; }
-    .grid { display:grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
-    .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; }
-    input, textarea { width: 100%; padding: 10px; margin-top: 6px; }
-    textarea { min-height: 140px; }
-    button { margin-top: 12px; padding: 10px 14px; cursor:pointer; }
-    .news-item { border-top: 1px solid #eee; padding-top: 10px; margin-top: 10px; }
-    .meta { color:#666; font-size: 13px; }
-    .danger { border: 1px solid #f2b8b5; }
-    .err { color:#b00020; margin-top: 10px; }
+    :root{
+      --bg:#0b1220; --card:#111a2e; --text:#e8eefc; --muted:#a9b6d6;
+      --line:rgba(255,255,255,.08); --radius:18px;
+      --good:#22c55e; --bad:#ef4444; --btn:#1f2a44;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family: system-ui, -apple-system, Segoe UI, Arial;
+      background: radial-gradient(1200px 600px at 80% -10%, rgba(99,102,241,.22), transparent 60%),
+                  radial-gradient(900px 450px at 10% 0%, rgba(34,197,94,.14), transparent 55%),
+                  var(--bg);
+      color:var(--text);
+    }
+    .container{max-width:1200px; margin:0 auto; padding:28px 18px 40px;}
+    .topbar{
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+      padding:14px 16px; border:1px solid var(--line); border-radius:var(--radius);
+      background: rgba(17,26,46,.72); backdrop-filter: blur(10px);
+      position: sticky; top: 14px; z-index:10;
+    }
+    .who{color:var(--muted); font-size:13px}
+    .btn{
+      background:var(--btn); color:var(--text); border:1px solid var(--line);
+      padding:10px 12px; border-radius:14px; cursor:pointer;
+    }
+    .btn.good{border-color:rgba(34,197,94,.35)}
+    .btn.bad{border-color:rgba(239,68,68,.35)}
+    .layout{display:grid; grid-template-columns: 1.15fr .85fr; gap:14px; margin-top:14px;}
+    @media (max-width: 980px){ .layout{grid-template-columns:1fr;} }
+    .card{
+      border:1px solid var(--line); border-radius:var(--radius);
+      background: rgba(17,26,46,.66); overflow:hidden;
+    }
+    .card .head{padding:14px 16px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; gap:12px;}
+    .card .body{padding:14px 16px;}
+    .row{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+    @media (max-width: 650px){ .row{grid-template-columns:1fr;} }
+    label{display:block; color:var(--muted); font-size:13px; margin-bottom:6px}
+    input, textarea, select{
+      width:100%; padding:10px 12px; border-radius:14px;
+      border:1px solid var(--line); background: rgba(0,0,0,.18); color:var(--text);
+      outline:none;
+    }
+    textarea{min-height:110px; resize:vertical}
+    .toolbar{display:flex; flex-wrap:wrap; gap:8px; margin-top:10px}
+    .blocks{display:flex; flex-direction:column; gap:10px; margin-top:12px}
+    .block{
+      border:1px solid var(--line); border-radius:14px; padding:12px;
+      background: rgba(0,0,0,.16);
+    }
+    .blockTop{display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px}
+    .tag{font-size:12px; color:var(--muted)}
+    .preview img,.preview video{width:100%; border-radius:14px; border:1px solid var(--line); background:#0b1220}
+    .tableGrid{display:grid; gap:8px}
+    .tableGrid input{border-radius:12px; padding:8px 10px}
+    .err{color:#ffb4b4; margin-top:10px; font-size:13px}
+    .newsItem{border-top:1px solid var(--line); padding-top:12px; margin-top:12px}
+    .meta{color:var(--muted); font-size:12px; margin-top:6px}
   </style>
 </head>
 <body>
-  <header>
-    <h1>لوحة الأدمن</h1>
-    <div>
-      <span id="who"></span>
-      <button id="logout" class="danger">تسجيل خروج</button>
-    </div>
-  </header>
-
-  <div class="grid">
-    <div class="card">
-      <h3>إضافة خبر</h3>
-      <form id="addForm">
-        <label>العنوان
-          <input name="title" required />
-        </label>
-        <label>المحتوى
-          <textarea name="body" required></textarea>
-        </label>
-        <button type="submit">نشر</button>
-        <div id="addMsg" class="err"></div>
-      </form>
+  <div class="container">
+    <div class="topbar">
+      <div>
+        <div style="font-weight:800">لوحة الأدمن</div>
+        <div class="who" id="who"></div>
+      </div>
+      <div style="display:flex; gap:8px; align-items:center">
+        <button class="btn bad" id="logout">تسجيل خروج</button>
+      </div>
     </div>
 
-    <div class="card">
-      <h3>إدارة الأخبار</h3>
-      <div id="list"></div>
+    <div class="layout">
+      <!-- Editor -->
+      <section class="card">
+        <div class="head">
+          <div style="font-weight:800">إنشاء خبر (Blocks)</div>
+          <button class="btn good" id="publish">نشر الخبر</button>
+        </div>
+        <div class="body">
+          <label>عنوان الخبر</label>
+          <input id="title" placeholder="مثال: إطلاق تحديث جديد..." />
+
+          <div class="toolbar">
+            <button class="btn" id="addP">+ نص</button>
+            <button class="btn" id="addImg">+ صورة</button>
+            <button class="btn" id="addVid">+ فيديو</button>
+            <button class="btn" id="addTbl">+ جدول</button>
+          </div>
+
+          <div class="blocks" id="blocks"></div>
+
+          <div id="msg" class="err"></div>
+        </div>
+      </section>
+
+      <!-- Manage -->
+      <aside class="card">
+        <div class="head">
+          <div style="font-weight:800">إدارة الأخبار</div>
+          <button class="btn" id="refresh">تحديث</button>
+        </div>
+        <div class="body" id="list"></div>
+      </aside>
     </div>
   </div>
 
   <script>
     let csrfToken = "";
+    let blocks = [];
 
-    async function getCsrf() {
+    async function getCsrf(){
       const r = await fetch("/api/csrf", { credentials: "same-origin" });
       const d = await r.json();
       csrfToken = d.csrfToken;
     }
 
-    async function me() {
-      const r = await fetch("/api/admin/me", { credentials: "same-origin" });
-      if (r.status === 401) {
-        location.href = "/login.html";
-        return;
-      }
+    async function me(){
+      const r = await fetch("/api/admin/me", { credentials:"same-origin" });
+      if(r.status === 401){ location.href="/login.html"; return; }
       const d = await r.json();
       document.getElementById("who").textContent = `مرحباً، ${d.user.username}`;
     }
 
-    async function load() {
-      const r = await fetch("/api/admin/news", { credentials: "same-origin" });
-      if (r.status === 401) { location.href = "/login.html"; return; }
-      const d = await r.json();
+    function renderBlocks(){
+      const root = document.getElementById("blocks");
+      root.innerHTML = "";
 
-      const list = document.getElementById("list");
-      list.innerHTML = "";
+      blocks.forEach((b, i) => {
+        const el = document.createElement("div");
+        el.className = "block";
 
-      if (!d.items || d.items.length === 0) {
-        list.innerHTML = "<p>لا توجد أخبار.</p>";
-        return;
-      }
+        const top = document.createElement("div");
+        top.className = "blockTop";
+        top.innerHTML = `<div class="tag">${labelOf(b.type)}</div>
+                         <div style="display:flex; gap:8px">
+                           <button class="btn" data-act="up">↑</button>
+                           <button class="btn" data-act="down">↓</button>
+                           <button class="btn bad" data-act="del">حذف</button>
+                         </div>`;
+        top.querySelector('[data-act="del"]').onclick = () => { blocks.splice(i,1); renderBlocks(); };
+        top.querySelector('[data-act="up"]').onclick = () => { if(i>0){ [blocks[i-1],blocks[i]]=[blocks[i],blocks[i-1]]; renderBlocks(); } };
+        top.querySelector('[data-act="down"]').onclick = () => { if(i<blocks.length-1){ [blocks[i+1],blocks[i]]=[blocks[i],blocks[i+1]]; renderBlocks(); } };
 
-      for (const item of d.items) {
-        const wrap = document.createElement("div");
-        wrap.className = "news-item";
-        wrap.innerHTML = `
-          <h4>${escapeHtml(item.title)}</h4>
-          <div class="meta">${new Date(item.createdAt).toLocaleString("ar-EG")}</div>
-          <p>${escapeHtml(item.body).replaceAll("\n","<br>")}</p>
-          <button data-id="${item.id}" class="danger">حذف</button>
-        `;
-        wrap.querySelector("button").addEventListener("click", async () => {
-          await del(item.id);
-        });
-        list.appendChild(wrap);
-      }
-    }
+        el.appendChild(top);
 
-    async function del(id) {
-      const r = await fetch(`/api/admin/news/${encodeURIComponent(id)}`, {
-        method: "DELETE",
-        headers: { "x-csrf-token": csrfToken },
-        credentials: "same-origin"
+        if(b.type === "paragraph"){
+          const ta = document.createElement("textarea");
+          ta.placeholder = "اكتب النص هنا...";
+          ta.value = b.text || "";
+          ta.oninput = () => b.text = ta.value;
+          el.appendChild(ta);
+        }
+
+        if(b.type === "image"){
+          const row = document.createElement("div");
+          row.className = "row";
+          row.innerHTML = `
+            <div>
+              <label>رفع صورة</label>
+              <input type="file" accept="image/*" />
+            </div>
+            <div>
+              <label>أو رابط صورة</label>
+              <input placeholder="https://..." value="${escapeAttr(b.url||"")}" />
+            </div>
+          `;
+          const file = row.querySelector('input[type="file"]');
+          const url = row.querySelectorAll('input')[1];
+
+          file.onchange = async () => {
+            const f = file.files[0];
+            if(!f) return;
+            const uploaded = await uploadFile(f);
+            if(uploaded?.url){ b.url = uploaded.url; renderBlocks(); }
+          };
+          url.oninput = () => { b.url = url.value; renderBlocks(); };
+          el.appendChild(row);
+
+          const prev = document.createElement("div");
+          prev.className="preview";
+          if(b.url){
+            prev.innerHTML = `<img src="${escapeAttr(b.url)}" alt="">`;
+          }else{
+            prev.innerHTML = `<div class="tag">لا توجد صورة بعد</div>`;
+          }
+          el.appendChild(prev);
+        }
+
+        if(b.type === "video"){
+          const row = document.createElement("div");
+          row.className = "row";
+          row.innerHTML = `
+            <div>
+              <label>رفع فيديو (mp4/webm)</label>
+              <input type="file" accept="video/mp4,video/webm" />
+            </div>
+            <div>
+              <label>أو رابط فيديو (mp4/webm أو YouTube)</label>
+              <input placeholder="https://..." value="${escapeAttr(b.url||"")}" />
+            </div>
+          `;
+          const file = row.querySelector('input[type="file"]');
+          const url = row.querySelectorAll('input')[1];
+
+          file.onchange = async () => {
+            const f = file.files[0];
+            if(!f) return;
+            const uploaded = await uploadFile(f);
+            if(uploaded?.url){ b.url = uploaded.url; renderBlocks(); }
+          };
+          url.oninput = () => { b.url = url.value; renderBlocks(); };
+          el.appendChild(row);
+
+          const prev = document.createElement("div");
+          prev.className="preview";
+          if(b.url){
+            if((b.url||"").includes("youtube.com") || (b.url||"").includes("youtu.be")){
+              prev.innerHTML = `<iframe width="100%" height="360" style="border:0;border-radius:14px"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowfullscreen src="${escapeAttr(toYoutubeEmbed(b.url))}"></iframe>`;
+            }else{
+              prev.innerHTML = `<video controls src="${escapeAttr(b.url)}"></video>`;
+            }
+          }else{
+            prev.innerHTML = `<div class="tag">لا يوجد فيديو بعد</div>`;
+          }
+          el.appendChild(prev);
+        }
+
+        if(b.type === "table"){
+          // جدول بسيط: headers + rows (تقدر تكبره)
+          const headCount = b.headers?.length || 3;
+          const rowCount = b.rows?.length || 3;
+
+          const controls = document.createElement("div");
+          controls.className="row";
+          controls.innerHTML = `
+            <div>
+              <label>عدد الأعمدة</label>
+              <input type="number" min="1" max="12" value="${headCount}">
+            </div>
+            <div>
+              <label>عدد الصفوف</label>
+              <input type="number" min="1" max="50" value="${rowCount}">
+            </div>
+          `;
+          const colIn = controls.querySelectorAll("input")[0];
+          const rowIn = controls.querySelectorAll("input")[1];
+
+          colIn.onchange = () => resizeTable(b, Number(colIn.value), Number(rowIn.value));
+          rowIn.onchange = () => resizeTable(b, Number(colIn.value), Number(rowIn.value));
+          el.appendChild(controls);
+
+          const grid = document.createElement("div");
+          grid.className="tableGrid";
+
+          // headers
+          const hWrap = document.createElement("div");
+          hWrap.style.display="grid";
+          hWrap.style.gridTemplateColumns = `repeat(${(b.headers||[]).length || 1}, 1fr)`;
+          hWrap.style.gap="8px";
+          (b.headers||[]).forEach((h, idx)=>{
+            const inp = document.createElement("input");
+            inp.placeholder = `عنوان العمود ${idx+1}`;
+            inp.value = h;
+            inp.oninput = ()=> b.headers[idx]=inp.value;
+            hWrap.appendChild(inp);
+          });
+          grid.appendChild(hWrap);
+
+          // rows
+          (b.rows||[]).forEach((r, rIdx)=>{
+            const rWrap = document.createElement("div");
+            rWrap.style.display="grid";
+            rWrap.style.gridTemplateColumns = `repeat(${r.length || 1}, 1fr)`;
+            rWrap.style.gap="8px";
+            r.forEach((cell, cIdx)=>{
+              const inp = document.createElement("input");
+              inp.placeholder = `R${rIdx+1}C${cIdx+1}`;
+              inp.value = cell;
+              inp.oninput = ()=> b.rows[rIdx][cIdx]=inp.value;
+              rWrap.appendChild(inp);
+            });
+            grid.appendChild(rWrap);
+          });
+
+          el.appendChild(grid);
+        }
+
+        root.appendChild(el);
       });
-      if (!r.ok) {
-        alert("فشل الحذف (تأكد من CSRF / الصلاحيات).");
-        await getCsrf();
-        return;
-      }
-      await load();
     }
 
-    document.getElementById("addForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const msg = document.getElementById("addMsg");
+    function resizeTable(b, cols, rows){
+      cols = Math.max(1, Math.min(12, cols||1));
+      rows = Math.max(1, Math.min(50, rows||1));
+
+      b.headers = b.headers || [];
+      while(b.headers.length < cols) b.headers.push("");
+      b.headers = b.headers.slice(0, cols);
+
+      b.rows = b.rows || [];
+      while(b.rows.length < rows) b.rows.push(Array(cols).fill(""));
+      b.rows = b.rows.slice(0, rows).map(r=>{
+        r = Array.isArray(r) ? r : [];
+        while(r.length < cols) r.push("");
+        return r.slice(0, cols);
+      });
+
+      renderBlocks();
+    }
+
+    function labelOf(t){
+      return ({paragraph:"نص", image:"صورة", video:"فيديو", table:"جدول"}[t] || t);
+    }
+
+    async function uploadFile(file){
+      const msg = document.getElementById("msg");
+      msg.textContent = "";
+      const fd = new FormData();
+      fd.append("file", file);
+
+      const r = await fetch("/api/admin/upload", {
+        method:"POST",
+        headers: { "x-csrf-token": csrfToken },
+        credentials:"same-origin",
+        body: fd
+      });
+
+      const d = await r.json().catch(()=>({}));
+      if(!r.ok){
+        msg.textContent = d.error || "فشل رفع الملف";
+        await getCsrf();
+        return null;
+      }
+      return d;
+    }
+
+    async function publish(){
+      const msg = document.getElementById("msg");
       msg.textContent = "";
 
-      const fd = new FormData(e.target);
-      const payload = {
-        title: fd.get("title"),
-        body: fd.get("body")
-      };
+      const title = document.getElementById("title").value.trim();
+      if(title.length < 2){ msg.textContent="العنوان مطلوب"; return; }
+      if(blocks.length === 0){ msg.textContent="أضف محتوى (Blocks) قبل النشر"; return; }
 
       const r = await fetch("/api/admin/news", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+        method:"POST",
+        headers:{
+          "Content-Type":"application/json",
           "x-csrf-token": csrfToken
         },
-        credentials: "same-origin",
-        body: JSON.stringify(payload)
+        credentials:"same-origin",
+        body: JSON.stringify({ title, blocks })
       });
 
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) {
+      const d = await r.json().catch(()=>({}));
+      if(!r.ok){
         msg.textContent = d.error || "فشل النشر";
         await getCsrf();
         return;
       }
 
-      e.target.reset();
-      await load();
-    });
+      // reset
+      document.getElementById("title").value = "";
+      blocks = [];
+      renderBlocks();
+      await loadList();
+    }
 
-    document.getElementById("logout").addEventListener("click", async () => {
-      const r = await fetch("/api/logout", {
-        method: "POST",
-        headers: { "x-csrf-token": csrfToken },
-        credentials: "same-origin"
+    async function loadList(){
+      const list = document.getElementById("list");
+      list.innerHTML = "";
+      const r = await fetch("/api/admin/news", { credentials:"same-origin" });
+      if(r.status === 401){ location.href="/login.html"; return; }
+      const d = await r.json();
+
+      const items = d.items || [];
+      if(items.length === 0){
+        list.innerHTML = `<div class="tag">لا توجد أخبار.</div>`;
+        return;
+      }
+
+      items.forEach(item=>{
+        const wrap = document.createElement("div");
+        wrap.className="newsItem";
+        wrap.innerHTML = `
+          <div style="font-weight:800">${escapeHtml(item.title)}</div>
+          <div class="meta">${new Date(item.createdAt).toLocaleString("ar-EG")}</div>
+          <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap">
+            <button class="btn bad">حذف</button>
+          </div>
+        `;
+        wrap.querySelector("button").onclick = async ()=>{
+          const rr = await fetch(`/api/admin/news/${encodeURIComponent(item.id)}`,{
+            method:"DELETE",
+            headers:{ "x-csrf-token": csrfToken },
+            credentials:"same-origin"
+          });
+          if(!rr.ok){ alert("فشل الحذف"); await getCsrf(); return; }
+          await loadList();
+        };
+        list.appendChild(wrap);
       });
-      if (r.ok) location.href = "/login.html";
-      else alert("فشل تسجيل الخروج");
-    });
+    }
 
-    function escapeHtml(s) {
-      return String(s).replace(/[&<>"']/g, (c) => ({
+    document.getElementById("addP").onclick = () => { blocks.push({type:"paragraph", text:""}); renderBlocks(); };
+    document.getElementById("addImg").onclick = () => { blocks.push({type:"image", url:"", alt:""}); renderBlocks(); };
+    document.getElementById("addVid").onclick = () => { blocks.push({type:"video", url:""}); renderBlocks(); };
+    document.getElementById("addTbl").onclick = () => { blocks.push({type:"table", headers:["",""], rows:[["",""],["",""]]}); renderBlocks(); };
+
+    document.getElementById("publish").onclick = publish;
+    document.getElementById("refresh").onclick = loadList;
+
+    document.getElementById("logout").onclick = async () => {
+      const r = await fetch("/api/logout", {
+        method:"POST",
+        headers:{ "x-csrf-token": csrfToken },
+        credentials:"same-origin"
+      });
+      if(r.ok) location.href="/login.html";
+      else alert("فشل تسجيل الخروج");
+    };
+
+    function toYoutubeEmbed(url){
+      try{
+        const u = new URL(url);
+        if(u.hostname.includes("youtu.be")){
+          return `https://www.youtube.com/embed/${u.pathname.replace("/","")}`;
+        }
+        const id = u.searchParams.get("v");
+        return `https://www.youtube.com/embed/${id || ""}`;
+      }catch{ return url; }
+    }
+
+    function escapeHtml(s){
+      return String(s).replace(/[&<>"']/g, c => ({
         "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"
       }[c]));
     }
+    function escapeAttr(s){ return escapeHtml(s).replaceAll('"',"&quot;"); }
 
-    (async function init() {
+    (async function init(){
       await getCsrf();
       await me();
-      await load();
+      renderBlocks();
+      await loadList();
     })();
   </script>
 </body>
